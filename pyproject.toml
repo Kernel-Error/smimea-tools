@@ -1,0 +1,17 @@
+[project]
+name = "smimea-tools"
+version = "0.1.0"
+description = "Python toolkit for generating and querying SMIMEA (RFC 8162) DNS records"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = [
+    "dnspython",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
