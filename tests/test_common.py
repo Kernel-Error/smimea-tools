@@ -31,10 +31,6 @@ def test_hash_local_part_domain_preserved():
     assert domain == "My.Domain.Example"
 
 
-@pytest.mark.xfail(
-    reason="Issue #1: local-part not lowercased before hashing per RFC 8162",
-    strict=True,
-)
 def test_hash_local_part_lowercase_before_hash():
     """RFC 8162 requires lowercasing the local-part before SHA-256."""
     hash_mixed, _ = hash_local_part("Test.User@example.com")
@@ -42,20 +38,12 @@ def test_hash_local_part_lowercase_before_hash():
     assert hash_mixed == hash_lower
 
 
-@pytest.mark.xfail(
-    reason="Issue #4: no input validation for email format",
-    strict=True,
-)
 def test_hash_local_part_no_at_sign():
     """Input without @ should raise ValueError with a clear message."""
     with pytest.raises(ValueError, match="[Ii]nvalid email"):
         hash_local_part("no-at-sign")
 
 
-@pytest.mark.xfail(
-    reason="Issue #4: no input validation for email format",
-    strict=True,
-)
 def test_hash_local_part_multiple_at_signs():
     """Input with multiple @ should raise ValueError with a clear message."""
     with pytest.raises(ValueError, match="[Ii]nvalid email"):
