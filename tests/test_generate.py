@@ -51,6 +51,12 @@ def test_format_bind9_record_structure():
     assert record.strip().endswith(")")
 
 
+def test_format_bind9_record_custom_ttl():
+    """TTL parameter is used in the record output."""
+    record = format_bind9_record("test._smimecert.example.com", "AA" * 10, ttl=7200)
+    assert "7200 IN SMIMEA 3 0 0" in record
+
+
 def test_format_bind9_record_line_length():
     """Hex chunks in the record are max 64 characters wide."""
     cert_hex = "AB" * 200

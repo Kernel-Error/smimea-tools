@@ -33,11 +33,19 @@ def _mock_resolver(monkeypatch, mock_answers, ad_flag=False):
 def test_extract_cert_from_smimea(mock_smimea_answers_300, tmp_path, monkeypatch):
     """Extracts a valid DER file from a mocked 3 0 0 SMIMEA answer."""
     monkeypatch.chdir(tmp_path)
+    cert_file = extract_cert_from_smimea(mock_smimea_answers_300, email="user@example.com")
+
+    assert cert_file == "user_at_example.com.der"
+    assert (tmp_path / "user_at_example.com.der").exists()
+    assert (tmp_path / "user_at_example.com.der").stat().st_size > 0
+
+
+def test_extract_cert_from_smimea_default_filename(mock_smimea_answers_300, tmp_path, monkeypatch):
+    """Falls back to smimea_cert.der when no email is provided."""
+    monkeypatch.chdir(tmp_path)
     cert_file = extract_cert_from_smimea(mock_smimea_answers_300)
 
     assert cert_file == "smimea_cert.der"
-    assert (tmp_path / "smimea_cert.der").exists()
-    assert (tmp_path / "smimea_cert.der").stat().st_size > 0
 
 
 def test_query_smimea_success(monkeypatch, mock_smimea_answers_300):
@@ -96,44 +104,56 @@ def test_query_smimea_no_nameservers(monkeypatch):
     assert dnssec is False
 
 
-def test_display_certificate_no_dnssec(sample_cert_and_email, capsys):
-    """Shows DNSSEC warning when not authenticated."""
+def _make_der(sample_cert_and_email, path="/tmp/test_cert.der"):
+    """Helper to create a DER file from the PEM test fixture."""
     cert_file, _ = sample_cert_and_email
     result = subprocess.run(
         ["openssl", "x509", "-in", cert_file, "-outform", "DER"],
-        capture_output=True,
-        check=True,
+        capture_output=True, check=True,
     )
-    der_path = "/tmp/test_verify.der"
-    with open(der_path, "wb") as f:
+    with open(path, "wb") as f:
         f.write(result.stdout)
+    return path
+
+
+def test_display_certificate_summary_no_dnssec(sample_cert_and_email, capsys, monkeypatch):
+    """Shows summary with DNSSEC warning when not authenticated."""
+    monkeypatch.setenv("NO_COLOR", "1")
+    der_path = _make_der(sample_cert_and_email)
 
     display_certificate(der_path, dnssec_authenticated=False)
 
     captured = capsys.readouterr()
     assert "NOT authenticated" in captured.out
     assert "DNSSEC-validating resolver" in captured.out
-    assert "Certificate details" in captured.out
+    assert "Certificate summary" in captured.out
+    assert "Subject:" in captured.out
+    assert "Valid until:" in captured.out
 
 
-def test_display_certificate_with_dnssec(sample_cert_and_email, capsys):
-    """Shows DNSSEC success message when authenticated."""
-    cert_file, _ = sample_cert_and_email
-    result = subprocess.run(
-        ["openssl", "x509", "-in", cert_file, "-outform", "DER"],
-        capture_output=True,
-        check=True,
-    )
-    der_path = "/tmp/test_verify_dnssec.der"
-    with open(der_path, "wb") as f:
-        f.write(result.stdout)
+def test_display_certificate_summary_with_dnssec(sample_cert_and_email, capsys, monkeypatch):
+    """Shows summary with DNSSEC success when authenticated."""
+    monkeypatch.setenv("NO_COLOR", "1")
+    der_path = _make_der(sample_cert_and_email)
 
     display_certificate(der_path, dnssec_authenticated=True)
 
     captured = capsys.readouterr()
     assert "authenticated by your resolver" in captured.out
     assert "can be trusted" in captured.out
+    assert "Certificate summary" in captured.out
+
+
+def test_display_certificate_full(sample_cert_and_email, capsys, monkeypatch):
+    """Shows full OpenSSL output with --full flag."""
+    monkeypatch.setenv("NO_COLOR", "1")
+    der_path = _make_der(sample_cert_and_email)
+
+    display_certificate(der_path, dnssec_authenticated=True, full=True)
+
+    captured = capsys.readouterr()
     assert "Certificate details" in captured.out
+    assert "Signature Algorithm" in captured.out
 
 
 def test_reject_non_300_record(mock_smimea_answers_301, tmp_path, monkeypatch):
@@ -148,12 +168,12 @@ def test_cli_lookup_exit_code_on_nxdomain():
     result = subprocess.run(
         [
             sys.executable, "-c",
-            "import dns.resolver; dns.resolver.resolve = lambda *a, **k: (_ for _ in ()).throw(dns.resolver.NXDOMAIN()); "
+            "import sys; sys.argv = ['smimea_lookup', 'user@nonexistent.example']; "
+            "import dns.resolver; dns.resolver.Resolver = type('R', (), {'use_edns': lambda *a: None, 'resolve': lambda *a, **k: (_ for _ in ()).throw(dns.resolver.NXDOMAIN())}); "
             "import smimea_lookup; smimea_lookup.main()",
         ],
         capture_output=True,
         text=True,
         env={**__import__("os").environ, "PYTHONPATH": "."},
-        input="user@nonexistent.example\n",
     )
     assert result.returncode != 0

@@ -6,8 +6,8 @@ A collection of Python tools for generating and querying SMIMEA (RFC 8162) DNS r
 
 ## Features
 
-- **`smimea_generate_record.py`**: Generates a BIND9-compatible SMIMEA DNS record from an email and its corresponding certificate.
-- **`smimea_lookup.py`**: Queries and extracts an SMIMEA record from DNS, retrieves the certificate, and displays its details using OpenSSL.
+- **`smimea_generate_record.py`**: Generates a BIND9-compatible SMIMEA DNS record from an email and its corresponding certificate. Supports custom TTL via `--ttl`.
+- **`smimea_lookup.py`**: Queries SMIMEA records from DNS, saves the certificate (as `<email>.der`), shows a compact summary with DNSSEC status. Use `--full` for complete certificate details.
 
 > **Note:** The lookup tool checks the DNSSEC AD (Authenticated Data) flag from your resolver and reports whether the response was authenticated. For this to work, you need a DNSSEC-validating resolver (e.g. Unbound, systemd-resolved with `DNSSEC=yes`).
 
@@ -45,6 +45,12 @@ python smimea_generate_record.py user@example.com user_cert.pem
 
 The email address must match one of the addresses in the certificate. The generated record uses SMIMEA parameters `3 0 0` (DANE-EE, full certificate, exact match).
 
+Custom TTL (default 3600):
+
+```sh
+python smimea_generate_record.py user@example.com user_cert.pem --ttl 7200
+```
+
 ### Querying an SMIMEA Record
 
 ```sh
@@ -59,17 +65,27 @@ python smimea_lookup.py user@example.com
 
 Only records with `selector=0` (full certificate) and `matching-type=0` (exact match) are supported. Records with other parameter combinations are skipped with a warning.
 
+Full certificate details instead of summary:
+
+```sh
+python smimea_lookup.py user@example.com --full
+```
+
+The certificate is saved as `user_at_example.com.der` in the current directory.
+
 ## Project Structure
 
 ```
 smimea-tools/
-├── smimea_common.py              # Shared utilities (email hashing)
+├── smimea_common.py              # Shared utilities (email hashing, colored output)
 ├── smimea_generate_record.py     # SMIMEA record generator
 ├── smimea_lookup.py              # SMIMEA DNS lookup
 ├── tests/                        # pytest test suite
 ├── pyproject.toml                # Project metadata and dependencies
 └── LICENSE
 ```
+
+Output uses colored text (green/yellow/red) on supported terminals. Set `NO_COLOR=1` to disable.
 
 ## Running Tests
 

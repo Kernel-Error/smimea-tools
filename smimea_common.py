@@ -6,6 +6,27 @@
 
 import hashlib
 import base64
+import os
+import sys
+
+
+def _colors_enabled():
+    """Check if colored output should be used."""
+    if os.environ.get("NO_COLOR") is not None:
+        return False
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def green(text):
+    return f"\033[32m{text}\033[0m" if _colors_enabled() else text
+
+
+def yellow(text):
+    return f"\033[33m{text}\033[0m" if _colors_enabled() else text
+
+
+def red(text):
+    return f"\033[31m{text}\033[0m" if _colors_enabled() else text
 
 
 def hash_local_part(email):
