@@ -18,7 +18,7 @@ def extract_emails_from_cert(cert_file):
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            emails = result.stdout.strip().split("\n")
+            emails = [e for e in result.stdout.strip().split("\n") if e]
             return emails
         else:
             print("Error extracting email from certificate:", result.stderr)
@@ -35,7 +35,7 @@ def convert_cert_to_hex(cert_file):
             capture_output=True
         )
         if result.returncode != 0:
-            print("Error converting certificate to DER format:", result.stderr)
+            print("Error converting certificate to DER format:", result.stderr.decode(errors="replace"))
             return None
 
         return result.stdout.hex().upper()
@@ -69,11 +69,11 @@ def main():
     
     if not cert_emails:
         print("No email address found in the certificate. Aborting.")
-        return
+        sys.exit(1)
 
     if email not in cert_emails:
         print(f"Error: The email address '{email}' does not match any in the certificate!")
-        return
+        sys.exit(1)
     
     print(f"✅ Email '{email}' matches the certificate!")
 
@@ -86,7 +86,7 @@ def main():
     
     if not cert_hex:
         print("Error converting certificate to hex format. Aborting.")
-        return
+        sys.exit(1)
 
     # Generate the BIND9 DNS entry
     bind9_record = format_bind9_record(smimea_name, cert_hex)

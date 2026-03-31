@@ -85,10 +85,6 @@ def test_cli_generate_email_mismatch(sample_cert_and_email):
     assert "does not match" in result.stdout
 
 
-@pytest.mark.xfail(
-    reason="Issue #4: exit code always 0 on error",
-    strict=True,
-)
 def test_cli_generate_exit_code_on_error(sample_cert_and_email):
     """Script should exit non-zero when email doesn't match cert."""
     cert_file, _ = sample_cert_and_email
@@ -100,10 +96,6 @@ def test_cli_generate_exit_code_on_error(sample_cert_and_email):
     assert result.returncode != 0
 
 
-@pytest.mark.xfail(
-    reason="Issue #4: empty OpenSSL output returns [''] instead of []",
-    strict=True,
-)
 def test_extract_emails_empty_result(sample_cert_no_email):
     """Cert without email SAN should return an empty list, not ['']."""
     result = extract_emails_from_cert(sample_cert_no_email)
