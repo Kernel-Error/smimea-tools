@@ -2,27 +2,34 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A collection of Python tools for generating and querying SMIMEA DNS records for S/MIME certificates.
+A collection of Python tools for generating and querying SMIMEA (RFC 8162) DNS records for S/MIME certificates.
 
-## 🚀 Features
+## Features
 
 - **`smimea_generate_record.py`**: Generates a BIND9-compatible SMIMEA DNS record from an email and its corresponding certificate.
-- **`smimea_lookup.py`**: Queries and extracts an SMIMEA record from DNS, retrieves the certificate, and verifies it using OpenSSL.
+- **`smimea_lookup.py`**: Queries and extracts an SMIMEA record from DNS, retrieves the certificate, and displays its details using OpenSSL.
 
-## 🛠️ Installation
+> **Note:** The lookup tool does not perform DNSSEC validation. Certificate data retrieved from DNS should not be trusted without verifying the DNSSEC chain separately.
+
+## Installation
 
 ### Prerequisites
-- Python 3.x
+- Python 3.9+
 - `openssl` command-line tool
-- `dnspython` package (for `smimea_lookup.py`)
 
-To install `dnspython`, run:
+### Setup
 
 ```sh
-pip install dnspython
+pip install -e .
 ```
 
-## 📌 Usage
+For development (includes pytest):
+
+```sh
+pip install -e ".[dev]"
+```
+
+## Usage
 
 ### Generating an SMIMEA Record
 
@@ -36,6 +43,8 @@ Example:
 python smimea_generate_record.py user@example.com user_cert.pem
 ```
 
+The email address must match one of the addresses in the certificate. The generated record uses SMIMEA parameters `3 0 0` (DANE-EE, full certificate, exact match).
+
 ### Querying an SMIMEA Record
 
 ```sh
@@ -48,10 +57,30 @@ Example:
 python smimea_lookup.py user@example.com
 ```
 
-## 📜 License
+Only records with `selector=0` (full certificate) and `matching-type=0` (exact match) are supported. Records with other parameter combinations are skipped with a warning.
+
+## Project Structure
+
+```
+smimea-tools/
+├── smimea_common.py              # Shared utilities (email hashing)
+├── smimea_generate_record.py     # SMIMEA record generator
+├── smimea_lookup.py              # SMIMEA DNS lookup
+├── tests/                        # pytest test suite
+├── pyproject.toml                # Project metadata and dependencies
+└── LICENSE
+```
+
+## Running Tests
+
+```sh
+python -m pytest -v
+```
+
+## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## ✨ Author
+## Author
 
 Developed by [Sebastian van de Meer](https://www.kernel-error.de).
