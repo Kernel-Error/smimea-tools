@@ -9,7 +9,7 @@ A collection of Python tools for generating and querying SMIMEA (RFC 8162) DNS r
 - **`smimea_generate_record.py`**: Generates a BIND9-compatible SMIMEA DNS record from an email and its corresponding certificate.
 - **`smimea_lookup.py`**: Queries and extracts an SMIMEA record from DNS, retrieves the certificate, and displays its details using OpenSSL.
 
-> **Note:** The lookup tool does not perform DNSSEC validation. Certificate data retrieved from DNS should not be trusted without verifying the DNSSEC chain separately.
+> **Note:** The lookup tool checks the DNSSEC AD (Authenticated Data) flag from your resolver and reports whether the response was authenticated. For this to work, you need a DNSSEC-validating resolver (e.g. Unbound, systemd-resolved with `DNSSEC=yes`).
 
 ## Installation
 

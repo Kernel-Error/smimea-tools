@@ -4,6 +4,7 @@
 # License: MIT License
 # Feel free to use, modify, and distribute this script as long as you retain attribution.
 
+import dns.flags
 import dns.resolver
 import subprocess
 import sys
@@ -11,15 +12,24 @@ import sys
 from smimea_common import hash_local_part
 
 def query_smimea(email):
-    """Queries the SMIMEA record for the hashed email address."""
+    """Queries the SMIMEA record for the hashed email address.
+
+    Requests DNSSEC data (DO flag) and checks the AD flag in the response
+    to determine whether the resolver validated the DNSSEC chain.
+
+    Returns (answers, smimea_name, dnssec_authenticated).
+    """
     local_hash, domain = hash_local_part(email)
     smimea_name = f"{local_hash}._smimecert.{domain}"
 
     print(f"\nQuerying DNS for SMIMEA record:\n  {smimea_name}\n")
-    
+
     try:
-        answers = dns.resolver.resolve(smimea_name, 'SMIMEA')
-        return answers, smimea_name
+        resolver = dns.resolver.Resolver()
+        resolver.use_edns(0, dns.flags.DO, 4096)
+        answers = resolver.resolve(smimea_name, 'SMIMEA')
+        dnssec_authenticated = bool(answers.response.flags & dns.flags.AD)
+        return answers, smimea_name, dnssec_authenticated
     except dns.resolver.NoAnswer:
         print("No SMIMEA record found.")
     except dns.resolver.NXDOMAIN:
@@ -31,7 +41,7 @@ def query_smimea(email):
     except dns.exception.DNSException as e:
         print(f"DNS error: {e}")
 
-    return None, smimea_name
+    return None, smimea_name, False
 
 def extract_cert_from_smimea(answers):
     """Extracts the certificate from the DNS record and saves it as a DER file.
@@ -63,20 +73,29 @@ def extract_cert_from_smimea(answers):
 
     return None
 
-def display_certificate(cert_file):
+def display_certificate(cert_file, dnssec_authenticated):
     """Decodes and displays the certificate details using OpenSSL.
 
-    NOTE: This does NOT perform DNSSEC validation. The certificate data
-    has not been authenticated and should not be trusted without verifying
-    the DNSSEC chain separately.
+    Shows DNSSEC authentication status so the user can make an informed
+    trust decision.
     """
+    if dnssec_authenticated:
+        print("DNSSEC: The DNS response was authenticated by your resolver.")
+        print("The SMIMEA record can be trusted.\n")
+    else:
+        print("DNSSEC: The DNS response was NOT authenticated.")
+        print("This means either the domain does not support DNSSEC, or your")
+        print("resolver does not perform DNSSEC validation. The certificate")
+        print("data may have been tampered with in transit.")
+        print("Consider using a DNSSEC-validating resolver (e.g. Unbound,")
+        print("systemd-resolved with DNSSEC=yes).\n")
+
     try:
         result = subprocess.run(
             ["openssl", "x509", "-inform", "DER", "-in", cert_file, "-text", "-noout"],
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            print("WARNING: No DNSSEC validation performed. Certificate authenticity is NOT verified.\n")
             print("Certificate details:\n")
             print(result.stdout)
         else:
@@ -90,12 +109,12 @@ def main():
     else:
         email = input("Enter the email address: ").strip()
     
-    answers, smimea_name = query_smimea(email)
-    
+    answers, smimea_name, dnssec_authenticated = query_smimea(email)
+
     if answers:
         cert_file = extract_cert_from_smimea(answers)
         if cert_file:
-            display_certificate(cert_file)
+            display_certificate(cert_file, dnssec_authenticated)
     else:
         print(f"\nNo valid SMIMEA record found for: {smimea_name}")
         sys.exit(1)
