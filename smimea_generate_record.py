@@ -4,17 +4,11 @@
 # License: MIT License
 # Feel free to use, modify, and distribute this script as long as you retain attribution.
 
-import hashlib
-import base64
 import subprocess
 import sys
 import textwrap
 
-def hash_local_part(email):
-    """Computes the SHA-256 hash of the local part of an email address, truncated to 28 bytes."""
-    local_part, domain = email.split('@')
-    hashed = hashlib.sha256(local_part.encode()).digest()
-    return base64.b16encode(hashed[:28]).decode().lower(), domain
+from smimea_common import hash_local_part
 
 def extract_emails_from_cert(cert_file):
     """Extracts email addresses from a given PEM certificate using OpenSSL."""

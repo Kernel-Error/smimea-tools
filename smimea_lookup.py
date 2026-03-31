@@ -4,17 +4,11 @@
 # License: MIT License
 # Feel free to use, modify, and distribute this script as long as you retain attribution.
 
-import hashlib
 import dns.resolver
-import base64
 import subprocess
 import sys
 
-def hash_local_part(email):
-    """Computes the SHA-256 hash of the local part of an email address, truncated to 28 bytes."""
-    local_part, domain = email.split('@')
-    hashed = hashlib.sha256(local_part.encode()).digest()
-    return base64.b16encode(hashed[:28]).decode().lower(), domain
+from smimea_common import hash_local_part
 
 def query_smimea(email):
     """Queries the SMIMEA record for the hashed email address."""
