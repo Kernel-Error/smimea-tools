@@ -26,36 +26,61 @@ def query_smimea(email):
         print("The domain does not exist.")
     except dns.exception.Timeout:
         print("DNS query timed out.")
-    
+    except dns.resolver.NoNameservers:
+        print("No nameservers available for this domain.")
+    except dns.exception.DNSException as e:
+        print(f"DNS error: {e}")
+
     return None, smimea_name
 
 def extract_cert_from_smimea(answers):
-    """Extracts the certificate from the DNS record and saves it as a DER file."""
-    for rdata in answers:
-        cert_hex = ''.join(rdata.to_text().split()[3:])  # Remove the first three fields (Usage, Selector, Matching Type)
-        cert_bin = bytes.fromhex(cert_hex)
-        cert_file = "smimea_cert.der"
+    """Extracts the certificate from the DNS record and saves it as a DER file.
 
+    Only supports selector=0 (full certificate) with matching-type=0 (exact match).
+    """
+    for rdata in answers:
+        fields = rdata.to_text().split()
+        usage, selector, mtype = int(fields[0]), int(fields[1]), int(fields[2])
+
+        if selector != 0 or mtype != 0:
+            print(f"Unsupported SMIMEA record: usage={usage} selector={selector} matching-type={mtype}")
+            print("Only selector=0 (full certificate) with matching-type=0 (exact match) is supported.")
+            continue
+
+        cert_hex = ''.join(fields[3:])
+        try:
+            cert_bin = bytes.fromhex(cert_hex)
+        except ValueError:
+            print("Error: invalid hex data in SMIMEA record.")
+            continue
+
+        cert_file = "smimea_cert.der"
         with open(cert_file, "wb") as f:
             f.write(cert_bin)
 
-        print(f"Certificate saved as {cert_file}")
+        print(f"Certificate saved as {cert_file} (usage={usage} selector={selector} matching-type={mtype})")
         return cert_file
 
     return None
 
-def verify_certificate(cert_file):
-    """Verifies the certificate using OpenSSL."""
+def display_certificate(cert_file):
+    """Decodes and displays the certificate details using OpenSSL.
+
+    NOTE: This does NOT perform DNSSEC validation. The certificate data
+    has not been authenticated and should not be trusted without verifying
+    the DNSSEC chain separately.
+    """
     try:
         result = subprocess.run(
             ["openssl", "x509", "-inform", "DER", "-in", cert_file, "-text", "-noout"],
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            print("Certificate successfully retrieved and verified:\n")
+            print("WARNING: No DNSSEC validation performed. Certificate authenticity is NOT verified.\n")
+            print("Certificate details:\n")
             print(result.stdout)
         else:
-            print("Error during certificate verification:", result.stderr)
+            print("Error decoding certificate:", result.stderr)
     except FileNotFoundError:
         print("OpenSSL is not installed or not found in the system path.")
 
@@ -70,9 +95,10 @@ def main():
     if answers:
         cert_file = extract_cert_from_smimea(answers)
         if cert_file:
-            verify_certificate(cert_file)
+            display_certificate(cert_file)
     else:
         print(f"\nNo valid SMIMEA record found for: {smimea_name}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

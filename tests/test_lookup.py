@@ -8,7 +8,7 @@ sys.path.insert(0, ".")
 from smimea_lookup import (
     query_smimea,
     extract_cert_from_smimea,
-    verify_certificate,
+    display_certificate,
 )
 
 
@@ -59,8 +59,19 @@ def test_query_smimea_no_answer(monkeypatch):
     assert answers is None
 
 
-def test_verify_certificate(sample_cert_and_email, capsys):
-    """Displays certificate details for a valid DER cert."""
+def test_query_smimea_no_nameservers(monkeypatch):
+    """Returns (None, name) when no nameservers are available."""
+    def mock_resolve(name, rdtype):
+        raise dns.resolver.NoNameservers()
+
+    monkeypatch.setattr(dns.resolver, "resolve", mock_resolve)
+
+    answers, _ = query_smimea("user@example.com")
+    assert answers is None
+
+
+def test_display_certificate(sample_cert_and_email, capsys):
+    """Displays certificate details with DNSSEC warning for a valid DER cert."""
     cert_file, _ = sample_cert_and_email
     result = subprocess.run(
         ["openssl", "x509", "-in", cert_file, "-outform", "DER"],
@@ -71,16 +82,14 @@ def test_verify_certificate(sample_cert_and_email, capsys):
     with open(der_path, "wb") as f:
         f.write(result.stdout)
 
-    verify_certificate(der_path)
+    display_certificate(der_path)
 
     captured = capsys.readouterr()
-    assert "Certificate successfully retrieved" in captured.out
+    assert "DNSSEC" in captured.out
+    assert "NOT verified" in captured.out
+    assert "Certificate details" in captured.out
 
 
-@pytest.mark.xfail(
-    reason="Issue #2: non-3-0-0 SMIMEA records not rejected",
-    strict=True,
-)
 def test_reject_non_300_record(mock_smimea_answers_301, tmp_path, monkeypatch):
     """Should reject or warn about records with matching-type != 0."""
     monkeypatch.chdir(tmp_path)
@@ -90,20 +99,17 @@ def test_reject_non_300_record(mock_smimea_answers_301, tmp_path, monkeypatch):
     assert cert_file is None
 
 
-@pytest.mark.xfail(
-    reason="Issue #4: exit code always 0 on error",
-    strict=True,
-)
-def test_cli_lookup_exit_code_on_nxdomain(monkeypatch):
+def test_cli_lookup_exit_code_on_nxdomain():
     """Script should exit non-zero when no SMIMEA record is found."""
-    def mock_resolve(name, rdtype):
-        raise dns.resolver.NXDOMAIN()
-
-    monkeypatch.setattr(dns.resolver, "resolve", mock_resolve)
-
     result = subprocess.run(
-        [sys.executable, "smimea_lookup.py", "user@nonexistent.example"],
+        [
+            sys.executable, "-c",
+            "import dns.resolver; dns.resolver.resolve = lambda *a, **k: (_ for _ in ()).throw(dns.resolver.NXDOMAIN()); "
+            "import smimea_lookup; smimea_lookup.main()",
+        ],
         capture_output=True,
         text=True,
+        env={**__import__("os").environ, "PYTHONPATH": "."},
+        input="user@nonexistent.example\n",
     )
     assert result.returncode != 0
